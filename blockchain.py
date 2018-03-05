@@ -10,7 +10,7 @@ class Blockchain(object):
     def __init__(self):
         self.chain = []
         self.current_transactions = []
-        self.new_block(proof=100, previous_hash=1)
+        self.new_block(proof=369, previous_hash=0xdeadbeef)
 
     # Creates a new block and adds it to the chain
     # Only specify previous hash if creating genesis block
@@ -87,7 +87,7 @@ def mine():
 
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
-    values = request.get_json()
+    values = request.args
     required = ['sender', 'recipient', 'amount']
     if not all(k in values for k in required):
         return 'Missing values', 400
