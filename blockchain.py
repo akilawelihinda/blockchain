@@ -15,6 +15,16 @@ class Blockchain(object):
         self.current_transactions = []
         self.new_block(proof=369, previous_hash=0xdeadbeef)
         self.nodes = set()
+        '''
+            utxo pool should be indexed by recipient for quick access
+            map<recipient_address> = set<transaction_output>
+            transaction_output = {
+                'recipient_address': 0x934053422382
+                'sender_address': 0x22j3kl4j23lk
+                'amount': 100
+            }
+        '''
+        self.utxoPool = map()
 
     def reset(self):
         self.__init__()
@@ -38,13 +48,51 @@ class Blockchain(object):
         self.chain.append(block)
         return block
 
-    # Adds a new transaction to the list of transactions
     # Returns index of block which will contain the new transaction
-    def new_transaction(self, sender, recipient, amount):
+    def new_transaction(self, sender, recipient, tx_amount):
+        # find which utxos to include in transaction
+        sender_utxos = utxoPool[sender]
+        included_utxos = []
+        unspent_total = 0
+        for(utxo in sender_utxos):
+            unspent_total += utxo['amount']
+            included_utxos.append(utxo)
+            if(unspent_total >= tx_amount):
+                break
+
+        return_balance = unspent_total - tx_amount;
+        if(return_balance < 0):
+            return -1
+
+        # remove sender's included utxos from the pool
+        utxoPool[sender] -= included_utxos
+
+        # create transaction inputs
+        tx_inputs = included_utxos
+
+        # create transaction outputs
+        tx_outputs = [{
+            'recipient_address': recipient,
+            'sender_address': sender,
+            'amount': tx_amount
+        }]
+
+        if(return_balance > 0):
+            tx_outputs.append({
+                'recipient_address': sender,
+                'sender_address': sender,
+                'amount': return_balance
+            })
+
+        # add receipient's new transaction outputs to utxoPool
+        utxoPool[recipient].append(tx_outputs)
+
         self.current_transactions.append({
             'sender': sender,
             'recipient': recipient,
-            'amount': amount
+            'inputs': tx_inputs,
+            'outputs': tx_outputs,
+            'amount': tx_amount
         })
         return self.last_block['index'] + 1
 
@@ -105,10 +153,9 @@ class Blockchain(object):
 # Flask logic
 app = Flask(__name__)
 
-# Generate a globally unique address for this node
+# Unique node addr
 node_identifier = str(uuid4()).replace('-', '')
 
-# Instantiate the Blockchain
 blockchain = Blockchain()
 
 
