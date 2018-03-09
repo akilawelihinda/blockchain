@@ -14,13 +14,14 @@ serverOne = "http://localhost:" + str(PORT_ONE)
 serverTwo = "http://localhost:" + str(PORT_TWO)
 
 def add_new_transaction(server):
-    requests.post(server + '/transactions/new',
-        data=dict(
+    response = requests.post(server + '/transactions/new',
+        data=json.dumps(dict(
             sender= 'sender_id',
             recipient= 'recipient_id',
             amount= 10
-        )
+        ))
     )
+    assert(response.status_code == 201)
     requests.get(server + '/mine')
     return requests.get(server + '/chain').json()
 
@@ -36,7 +37,8 @@ class TestBlockChainBasic(unittest.TestCase):
 
     def test_new_transaction(self):
         response = add_new_transaction(serverOne)
-        self.assertEqual(response['length'], 2)
+        response = add_new_transaction(serverOne)
+        self.assertEqual(response['length'], 3)
 
     def test_register_new_node(self):
         response = requests.post(serverOne + '/nodes/register',
@@ -52,7 +54,8 @@ class TestBlockChainBasic(unittest.TestCase):
         self.assertEqual(response['length'], 2)
         response = requests.get(serverTwo + '/chain').json()
         self.assertEqual(response['length'], 1)
-        #TODO: finish adding resolve endpoint logic here
+        response = requests.get(serverOne + '/nodes/resolve').json()
+        self.assertEqual(len(response['chain']), 2)
 
 
 if __name__ == '__main__':

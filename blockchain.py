@@ -16,6 +16,9 @@ class Blockchain(object):
         self.new_block(proof=369, previous_hash=0xdeadbeef)
         self.nodes = set()
 
+    def reset(self):
+        self.__init__()
+
     def register_node(self, address):
         parsed_url = urlparse(address)
         self.nodes.add(parsed_url.netloc)
@@ -144,7 +147,7 @@ def full_chain():
 
 @app.route('/reset', methods=['GET'])
 def reset():
-    blockchain = Blockchain()
+    blockchain.reset()
     response = {
         'chain': blockchain.chain,
         'length': len(blockchain.chain),
