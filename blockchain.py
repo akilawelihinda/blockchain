@@ -117,6 +117,7 @@ class Blockchain(object):
         guess_hash = hashlib.sha256(guess).hexdigest()
         return guess_hash[:4] == "0000"
 
+    #TODO check chain validity by creating fresh utxoPool to prevent double-spend
     def valid_chain(self, chain):
         current_index = 1
         while(current_index < len(chain)):
