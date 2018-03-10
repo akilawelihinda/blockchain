@@ -9,6 +9,8 @@ import requests
 
 from flask import Flask, jsonify, request
 
+COINBASE = 'coinbase'
+
 class Blockchain(object):
     def __init__(self):
         self.chain = []
@@ -19,8 +21,8 @@ class Blockchain(object):
             utxo pool should be indexed by recipient for quick access
             map<recipient_address> = set<transaction_output>
             transaction_output = {
-                'recipient_address': 0x934053422382
-                'sender_address': 0x22j3kl4j23lk
+                'recipient': 0x934053422382
+                'sender': 0x22j3kl4j23lk
                 'amount': 100
             }
         '''
@@ -50,8 +52,10 @@ class Blockchain(object):
 
     # Returns index of block which will contain the new transaction
     def new_transaction(self, sender, recipient, tx_amount):
+        # TODO: add logic to deal with the case when sender is coinbase
+
         # find which utxos to include in transaction
-        sender_utxos = utxoPool[sender]
+        sender_utxos = self.utxoPool[sender]
         included_utxos = []
         unspent_total = 0
         for(utxo in sender_utxos):
@@ -65,27 +69,27 @@ class Blockchain(object):
             return -1
 
         # remove sender's included utxos from the pool
-        utxoPool[sender] -= included_utxos
+        self.utxoPool[sender] -= included_utxos
 
         # create transaction inputs
         tx_inputs = included_utxos
 
         # create transaction outputs
         tx_outputs = [{
-            'recipient_address': recipient,
-            'sender_address': sender,
+            'recipient': recipient,
+            'sender': sender,
             'amount': tx_amount
         }]
 
         if(return_balance > 0):
             tx_outputs.append({
-                'recipient_address': sender,
-                'sender_address': sender,
+                'recipient': sender,
+                'sender': sender,
                 'amount': return_balance
             })
 
         # add receipient's new transaction outputs to utxoPool
-        utxoPool[recipient].append(tx_outputs)
+        self.utxoPool[recipient].append(tx_outputs)
 
         self.current_transactions.append({
             'sender': sender,
@@ -117,8 +121,9 @@ class Blockchain(object):
         guess_hash = hashlib.sha256(guess).hexdigest()
         return guess_hash[:4] == "0000"
 
-    #TODO check chain validity by creating fresh utxoPool to prevent double-spend
+    #TODO check chain validity by creating fresh utxoPool to monitor double-spend
     def valid_chain(self, chain):
+        utxo_verify_pool = map()
         current_index = 1
         while(current_index < len(chain)):
             current_block = chain[current_index]
@@ -127,6 +132,21 @@ class Blockchain(object):
                 return False
             if (self.hash(previous_block) != current_block['previous_hash']):
                 return False
+
+            # verify transactions in current block haven't been double-spent
+            current_txs = current_block['transactions']
+            for(tx in current_txs):
+                for(output in tx['outputs']):
+                    recipient = output['recipient']
+                    utxo_verify_pool[recipient].append(output)
+
+                for(input_ in tx['inputs']):
+                    sender = input_['sender']
+                    # check if sender of input hasn't already spent it
+                    if sender != COINBASE and input_ not in utxo_verify_pool[sender]:
+                        return False
+                    utxo_verify_pool[recipient].remove(input_)
+
             current_index += 1
         return True
 
@@ -162,7 +182,7 @@ blockchain = Blockchain()
 
 @app.route('/mine', methods=['GET'])
 def mine():
-    blockchain.new_transaction("coinbase", node_identifier, 1)
+    blockchain.new_transaction(COINBASE, node_identifier, 1)
     last_proof = blockchain.last_block['proof']
     current_proof = blockchain.proof_of_work(last_proof)
     block = blockchain.new_block(current_proof)
